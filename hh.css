@@ -8,10 +8,11 @@ body {
   font-family: 'Eurostile', sans-serif;
   text-align: center;
 }
+
 a { color: #fcf; text-decoration: none; }
 a:hover { color: #fff; }
 
-div, a, canvas {
+body, html, div, a, p {
   -webkit-transition: all 0.23s;
   -moz-transition: all 0.23s;
   -o-transition: all 0.23s;
@@ -27,7 +28,6 @@ h1 { font-variant: small-caps; font-weight: 100; }
 .controls {
 
 }
+.subtitle { font-size: 8px; }
 
-.btn {
-  border: 1px solid #fff;
-}
+.btn { border: 1px solid #fff; }

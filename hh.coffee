@@ -1,4 +1,4 @@
-# hodgkin-huxley simulation.
+# hodgkin-huxley simulation
 # 2013-04-07
 # keroserene
 
@@ -14,82 +14,71 @@ SPEC =
   zero: (height / 2)
   axis_color: "#663366"
   data_color: "#ffccff"
+  dt: 0.1
 
 C_m = 1.0  # micro-farads per square cm.
 
-# Obtain the steady state
-steady = (gate, v) =>
-  a = gate.alpha v
-  a / (a + gate.beta v)
+# Empirically determined steady-state rate constant expression
+# via Hodgkin and Huxley.
+RC =
+  N: [((v) -> 0.01 * (10.0 - v) / (Math.exp ((10.0 - v) / 10) - 1.0)),
+      ((v) -> 0.125 * Math.exp (-v / 80.0))]
 
-steady = (gate, v) ->
-  [alpha, beta] = gate v
-  alpha / (alpha + beta)
+  M: [((v) -> 0.1 * (25.0 - v) / (Math.exp ((25.0 - v) / 10.0) - 1.0)),
+      ((v) -> 4.0 * Math.exp (-v / 18.0))]
 
-# computeGate = (fun, v) ->
-  # fun (v, alpha, beta)
+  H: [((v) -> 0.07 * Math.exp (-v / 20.0)),
+      ((v) -> 1.0 / (Math.exp ((30.0 - v) / 10.0) + 1.0))]
 
-updateGate = (gate, v, alpha, beta) ->
-  delta = ((alpha v) * (1.0 - gate)) - ((beta v) * gate)
-  gate + delta
+steady = (ab, v) ->
+  a = ab[0] v
+  b = ab[1] v
+  a / (a + b)
 
-# Empirically determined steady-state rate constants via Hodgkin and Huxley.
-updateN = (n, v) ->
-  updateGate(n, v,
-    (v) -> 0.01 * (10 - v) / Math.exp -v / 80,
-    (v) -> 0.125 * Math.exp (-v / 80))
-
-updateM = (m, v) ->
-  updateGate(m, v,
-    (v) -> 0.1 * (25 - v) / (Math.exp ((25 - v)/10) - 1),
-    (v) -> 4.0 * Math.exp (-v / 18))
-
-updateH= (h, v) ->
-  updateGate(h, v,
-    (v) -> 0.07 * Math.exp (-v / 20),
-    (v) -> 1.0 / (Math.exp ((30 - v) / 10) + 1))
-
+delta = (ab, v, old) ->
+  a = ab[0] v
+  b = ab[1] v
+  d = (ab[0] v) * (1.0 - old) - (ab[1] v) * old
+  d * SPEC.dt
 
 # Computes the conductance (reciprocal of resistance) given an equilibrium
 # constant and exponents for gating variables m, n, h.
 class Neuron
   v: 0  # Current voltage.
+  constructor: (@membrane_potential) ->
+  delay: 0
+  impulse: 0
+
   fire: (v) =>
-    @v = v
-    @m = 0
-    @n = 0
-    @h = 0
-    @computeGateVariables()
+    @n = steady(RC.N, @membrane_potential)
+    @m = steady(RC.M, @membrane_potential)
+    @h = steady(RC.H, @membrane_potential)
+    console.log('steady state: ' + @n + ', ' + @m + ', ' + @h)
+    @delay = 10
+    @impulse = v
 
   stepVoltage: =>
-    # Update gating variables.
-    @computeGateVariables()
     v = @v
-    # console.log 'lol ' + @m + @n + @h
-    # I = (@I_Na @v) + (@I_K @v) + (@I_L @v)
-    # gna = @G_Na v
-    # gk = @G_Na v
-    # gl = @G_Na v
-    # G = gna + gk + gl
-    # R = 1.0 / G
-    # I = gna * (v - 115) + gk * (v + 12.0) + gl * (v - 10.6)
-    dV = (@I_Na @v) + (@I_K @v) + (@I_L @v)
-    # Calculate resistance and divide.
-    @v -= dV * 0.00000001
-
-  computeGateVariables: ->
-    [@m, @n, @h] = [updateM(@m, @v), updateN(@m, @v), updateH(@h, @v)]
+    @delay -= 1
+    if @delay == 1
+      v = @impulse
+    @n += delta(RC.N, v, @n)
+    @m += delta(RC.M, v, @m)
+    @h += delta(RC.H, v, @h)
+    dV = (@I_Na @v) + (@I_K v) + (@I_L v)
+    console.log('gates: ' + @n + ', ' + @m + ', ' + @h + ' -- v: ' + v)
+    v -= dV * SPEC.dt
+    @v = v
 
   I_Na: (v) ->
-    @_conductance 115.0, 120.0, ((m, n, h) -> Math.pow(m, 3) * h)
+    @_conductance -115.0, 120.0, ((m, n, h) -> Math.pow(m, 3) * h)
   I_K: (v) ->
-    @_conductance -12.0, 36.0, ((m, n, h) -> Math.pow(n, 4))
+    @_conductance 12.0, 36.0, ((m, n, h) -> Math.pow(n, 4))
   I_L: (v) ->
-    @_conductance 10.6, 0.3, ((m, n, h) -> 1.0)
+    @_conductance 10.613, 0.3, ((m, n, h) -> 1.0)
   # Calculate current given equilibrium, rate, and factor function.
   _conductance: (Ex, gx, factors) ->
     gx * (factors @m, @n, @h)
-    # * (@v - Ex)
   _current: (Ex, gx, factors) ->
     gx * (factors @m, @n, @h) * (@v - Ex)
 
@@ -134,16 +123,16 @@ class Graph
     @tick = 0.0
 
     # Initializes membrane voltage.
-    neuron.fire 10
+    neuron.fire -20
 
     @graphing = setInterval =>
       if @tick > 100
         clearInterval @graphing
-      @tick += 1
+      @tick += 0.05
+      @tick += SPEC.dt
       v = neuron.stepVoltage()
       @datapoint(@tick, v)
-      console.log '[' + @tick + '] ' + v
-    , 100
+    , 3
 
   line: (x1,y1,x2,y2) =>
     @ctx.moveTo x1, y1
@@ -160,7 +149,7 @@ $ ->
   graph = new Graph canvas
   graph.init()
 
-  neuron = new Neuron()
+  neuron = new Neuron 0
 
   $("#fire").click ->
     graph.fire(neuron)
