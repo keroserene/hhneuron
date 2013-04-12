@@ -7,6 +7,7 @@ body {
   color: #fff;
   font-family: 'Eurostile', sans-serif;
   text-align: center;
+  font-variant: small-caps;
 }
 
 a { color: #fcf; text-decoration: none; }
@@ -19,15 +20,43 @@ body, html, div, a, p {
   transition: all 0.23s;
 }
 
-h1 { font-variant: small-caps; font-weight: 100; }
-#pulse {
+input {
+  background-color: #000;
+  color: #fff;
+}
+input:hover {
+  background-color: #111;
+}
+h1 {
+  font-variant: small-caps;
+  font-weight: 100;
+  margin: 0; padding: 0;
+}
+.subtitle { font-size: 12px; }
+canvas#pulse {
   display: block;
-  border: 1px solid #333;
+  border: 1px solid #111;
   margin: auto; padding: 8px;
+}
+
+#stimulus {
+  width: 40px; padding: 8px;
+  text-align: right; font-size: 16px;
+  outline: none;
+  border: 1px solid #111;
+}
+.gate-vars {
+  width: 100%;
 }
 .controls {
 
 }
-.subtitle { font-size: 8px; }
 
-.btn { border: 1px solid #fff; }
+.btn {
+  display: inline-block; padding: 8px 32px;
+  border: 1px solid #222; border-radius: 2px;
+  background-color: #000;
+}
+.btn:hover {
+  background-color: #111;
+}

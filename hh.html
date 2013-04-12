@@ -9,14 +9,21 @@
 <body>
 
 <h1>Hodgkin Huxley Simulation</h1>
-<p class="subtitle">Serene Han (keroserene)</p>
+<p class="subtitle">~keroserene</p>
 
-<canvas id="pulse" width="1000", height="400">
-lol
-</canvas>
+<div class="gate-vars">
+M: <span id="m"></span>
+N: <span id="n"></span>
+H: <span id="h"></span>
+</div>
+
+<canvas id="pulse" width="550", height="400"></canvas>
 
 <div class="controls">
-<a href="javascript:void(0)" id="fire" type="button">Fire</a>
+<input type="text" id="stimulus"> mV
+
+<a href="javascript:void(0)" id="fire" class="btn">Fire</a>
+
 </div>
 
 </body>
