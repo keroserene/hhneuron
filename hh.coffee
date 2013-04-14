@@ -11,11 +11,12 @@ SPEC =
   px_top: 5
   margin: 30
   zero: (height / 2)
+  threads: 100
   mV_range: 60
-  ms_range: 80
-  dt: 0.005                # Time per between simulation step.
+  ms_range: 10
+  dt: 0.001                # Time per between simulation step.
   stim_delay: 1       # Milliseconds before stimulus begins.
-  stim_duration: 30
+  stim_duration: 20
   axis_color: "#664466"
   data_color: "#ffccff"
 
@@ -66,7 +67,7 @@ class Neuron
     @m = steady('M', @membrane_potential)
     @h = steady('H', @membrane_potential)
     @delay = parseInt SPEC.stim_duration
-    @impulse = parseFloat(v)/SPEC.stim_duration
+    @impulse = parseFloat(v) / parseFloat(SPEC.stim_duration)
 
   # Single step of the simulation.
   stepVoltage: =>
@@ -91,10 +92,6 @@ class Neuron
     @v = v
 
 
-rgb = (r, g, b) ->
-  'rgb(' + parseInt(r) + ', ' + parseInt(g) + ', ' + parseInt(b) + ')'
-
-
 # Canvas representation
 class Graph
   tick: 0
@@ -103,6 +100,7 @@ class Graph
   red: 255
   green: 128
   blue: 255
+  neuron: null
 
   constructor: (@canvas) ->
     @ctx = canvas.getContext "2d"
@@ -125,33 +123,39 @@ class Graph
       @ctx.fillText t, SPEC.margin + t * @px_ms, SPEC.zero + 10
     for n in [0..SPEC.mV_range] by 5
       label_voltage (n - SPEC.mV_range / 2)
-    for t in [0..SPEC.ms_range] by 5
+    for t in [0..SPEC.ms_range] by 1
       label_ms t
     @ctx.closePath()
+    # Start a bunch of render threads for speed!
+    setInterval @graphStep, 0  for [1..SPEC.threads]
 
   # Begin an action potential simulation.
   # Inject is the number of mV applied to the neuron.
   fire: (neuron) =>
-    # if @graphing != null
-      # return
-    console.log(@graphing)
-    @ctx.beginPath()
-    @ctx.moveTo SPEC.margin, SPEC.zero
-    @tick = 0.0
+    # Clean up any interrupted action potential signals.
+    if @neuron
+      @ctx.strokeStyle = rgb(60,20,20)
+      @ctx.stroke()
+      # @ctx.closePath()
+    else
+      @tick = 0.0
+      @ctx.beginPath()
+      @ctx.moveTo SPEC.margin, SPEC.zero
     neuron.fire $('#stimulus').val()
-    # Initializes membrane voltage.
-    @graphing = setInterval =>
-      @tick += 0.2
-      factor = Math.max(0, 1 - 0.8*(@tick / parseFloat(SPEC.ms_range)))
-      color = rgb(@red * factor, @green * factor, @blue * factor)
-      @ctx.strokeStyle = color
-      if @tick > SPEC.ms_range
-        clearInterval @graphing
-        @graphing = null
-        # @ctx.strokeStyle = rgb(60,20,,5)
-      v = neuron.stepVoltage()
-      @datapoint(@tick, v)
-    , 0
+    @neuron = neuron
+
+  graphStep: () =>
+    if not @neuron
+      return
+    @tick += SPEC.dt
+    factor = Math.max(0, 1 - 0.8*(@tick / parseFloat(SPEC.ms_range)))
+    color = rgb(@red * factor, @green * factor, @blue * factor)
+    @ctx.strokeStyle = color
+    v = @neuron.stepVoltage()
+    if @tick > SPEC.ms_range
+      @ctx.strokeStyle = rgb(60,30,60)
+      @neuron = null
+    @datapoint(@tick, v)
 
   line: (x1,y1,x2,y2) =>
     @ctx.moveTo x1, y1
@@ -162,17 +166,16 @@ class Graph
     @ctx.lineTo(SPEC.margin + t * @px_ms, SPEC.zero - v * @px_mV)
     @ctx.stroke()
 
+rgb = (r, g, b) ->
+  'rgb(' + parseInt(r) + ', ' + parseInt(g) + ', ' + parseInt(b) + ')'
 
 editStimulus = (v) ->
   $('#stimulus').val(parseFloat(v))
-
 
 changeStimulus = (dV) ->
   o = $('#stimulus')
   editStimulus(parseFloat($('#stimulus').val()) + dV)
   o.focus()
-
-
 
 $ ->
   canvas = $("#pulse")[0]
