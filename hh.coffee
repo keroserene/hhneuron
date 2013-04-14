@@ -11,18 +11,13 @@ SPEC =
   px_top: 5
   margin: 30
   zero: (height / 2)
-  mV_range: 80
+  mV_range: 60
   ms_range: 100
-  # mV_px: 5                # Pixels per millivolt.
-  # ms_px: 5                # Pixels per millisecond.
-  dt: 0.01                # Time per between simulation step.
+  dt: 0.005                # Time per between simulation step.
   stim_delay: 1       # Milliseconds before stimulus begins.
   stim_duration: 30
   axis_color: "#663366"
   data_color: "#ffccff"
-
-SPEC.px_mV = height / SPEC.mV_range
-SPEC.px_ms = width / SPEC.ms_range
 
 C_m = 1.0  # micro-farads / sq-cm.
 
@@ -37,7 +32,7 @@ beta =
   M: (v) -> 4.0 * Math.exp (-v / 18.0)
   H: (v) -> 1.0 / (Math.exp ((30.0 - v) / 10.0) + 1.0)
 
-E =         # Reversal potential
+E =            # Reversal potential
   Na: -115.0
   K: 12.0
   L: 10.613
@@ -47,11 +42,11 @@ gbar =         # Conductance
   K: 36.0
   L: 0.3
 
-steady = (gate, v) ->
+steady = (gate, v) ->   # Steady-state gating-variable value.
   a = alpha[gate] v
-  b = beta[gate] v
-  a / (a + b)
-delta = (gate, v, old) ->
+  a / (a + beta[gate] v)
+
+delta = (gate, v, old) ->   # Gate variable change step based on mV.
   d = (alpha[gate] v) * (1.0 - old) - (beta[gate] v) * old
   d * SPEC.dt
 
@@ -80,23 +75,19 @@ class Neuron
     if @delay > 0
       v += @impulse if @delay < SPEC.stim_duration - SPEC.stim_delay
       @delay -= 1
-
     @n += delta('N', v, @n)
     @m += delta('M', v, @m)
     @h += delta('H', v, @h)
-    $('#n').text(@n.toFixed(8))
-    $('#m').text(@m.toFixed(8))
-    $('#h').text(@h.toFixed(8))
-
+    # $('#n').text(@n.toFixed(8))
+    # $('#m').text(@m.toFixed(8))
+    # $('#h').text(@h.toFixed(8))
     I_Na = Math.pow(@m, 3) * @h * @current 'Na'
     I_K = Math.pow(@n, 4) * @current 'K'
     I_L = @current 'L'
-
-    # dV = (@I_Na v) + (@I_K v) + (@I_L v)
     dV = I_Na + I_K + I_L
-    # console.log('gates: ' + @n + ', ' + @m + ', ' + @h + ' -- v: ' + v)
-    # console.log('currents: ' + I_Na + ', ' + I_K + ', ' + I_L + ' -- v: ' + v)
     v -= dV * SPEC.dt
+    v = 40 if v > 40
+    v = -40 if v < -40
     @v = v
 
 
@@ -110,24 +101,26 @@ class Graph
     @ctx = canvas.getContext "2d"
     @ctx.fillStyle = "#ffffff"
     @ctx.lineWidth = 1
+    @init()
 
   init: =>
     # Build graph. Time on X axis, Voltage on the Y axis.
+    @px_mV = height / SPEC.mV_range
+    @px_ms = width / SPEC.ms_range
     @ctx.strokeStyle = SPEC.axis_color
     @ctx.beginPath()
     @line SPEC.margin, SPEC.zero, SPEC.margin + width, SPEC.zero
     @line SPEC.margin, SPEC.px_top, SPEC.margin, height
     label_voltage = (n) =>
-      @ctx.fillText n, SPEC.margin - 20, SPEC.zero - n * SPEC.px_mV
+      @ctx.fillText n, SPEC.margin - 20, SPEC.zero - n * @px_mV
     label_ms = (t) =>
-      @ctx.fillText t, SPEC.margin + t * SPEC.px_ms, SPEC.zero + 10
+      @ctx.fillText t, SPEC.margin + t * @px_ms, SPEC.zero + 10
     for n in [0..SPEC.mV_range] by 5
       label_voltage (n - SPEC.mV_range / 2)
     for t in [0..SPEC.ms_range] by 5
       label_ms t
     @ctx.strokeStyle = SPEC.data_color
     @ctx.closePath()
-    true
 
   # Begin an action potential simulation.
   # Inject is the number of mV applied to the neuron.
@@ -140,8 +133,11 @@ class Graph
     @graphing = setInterval =>
       if @tick > SPEC.ms_range
         clearInterval @graphing
-      @tick += 1
+      # next = @tick + SPEC.dt * 10
+      # while @tick < next
       v = neuron.stepVoltage()
+        # @tick += SPEC.dt
+      @tick += 0.1
       @datapoint(@tick, v)
     , 1
 
@@ -151,15 +147,30 @@ class Graph
     @ctx.stroke()
 
   datapoint: (t, v) =>
-    @ctx.lineTo(SPEC.margin + t * SPEC.px_ms, SPEC.zero - v * SPEC.px_mV)
+    @ctx.lineTo(SPEC.margin + t * @px_ms, SPEC.zero - v * @px_mV)
     @ctx.stroke()
+
+
+editStimulus = (v) ->
+  $('#stimulus').val(parseFloat(v))
+
+
+changeStimulus = (dV) ->
+  editStimulus(parseFloat($('#stimulus').val()) + dV)
+
+
 
 $ ->
   canvas = $("#pulse")[0]
   graph = new Graph canvas
-  graph.init()
   neuron = new Neuron 0
   $("#stimulus").val(20)
-
   $("#fire").click ->
     graph.fire(neuron)
+  $(document).keydown (e) ->
+    console.log e.keyCode
+    switch e.keyCode
+      when 38 then changeStimulus(1)
+      when 40 then changeStimulus(-1)
+      when 13 then graph.fire(neuron)
+      else true
