@@ -12,11 +12,11 @@ SPEC =
   margin: 30
   zero: (height / 2)
   mV_range: 60
-  ms_range: 100
+  ms_range: 80
   dt: 0.005                # Time per between simulation step.
   stim_delay: 1       # Milliseconds before stimulus begins.
   stim_duration: 30
-  axis_color: "#663366"
+  axis_color: "#664466"
   data_color: "#ffccff"
 
 C_m = 1.0  # micro-farads / sq-cm.
@@ -91,11 +91,18 @@ class Neuron
     @v = v
 
 
+rgb = (r, g, b) ->
+  'rgb(' + parseInt(r) + ', ' + parseInt(g) + ', ' + parseInt(b) + ')'
+
+
 # Canvas representation
 class Graph
   tick: 0
   ctx: null
   graphing: null
+  red: 255
+  green: 128
+  blue: 255
 
   constructor: (@canvas) ->
     @ctx = canvas.getContext "2d"
@@ -108,6 +115,7 @@ class Graph
     @px_mV = height / SPEC.mV_range
     @px_ms = width / SPEC.ms_range
     @ctx.strokeStyle = SPEC.axis_color
+    @ctx.fillStyle = SPEC.axis_color
     @ctx.beginPath()
     @line SPEC.margin, SPEC.zero, SPEC.margin + width, SPEC.zero
     @line SPEC.margin, SPEC.px_top, SPEC.margin, height
@@ -119,27 +127,31 @@ class Graph
       label_voltage (n - SPEC.mV_range / 2)
     for t in [0..SPEC.ms_range] by 5
       label_ms t
-    @ctx.strokeStyle = SPEC.data_color
     @ctx.closePath()
 
   # Begin an action potential simulation.
   # Inject is the number of mV applied to the neuron.
   fire: (neuron) =>
+    # if @graphing != null
+      # return
+    console.log(@graphing)
     @ctx.beginPath()
     @ctx.moveTo SPEC.margin, SPEC.zero
     @tick = 0.0
-    # Initializes membrane voltage.
     neuron.fire $('#stimulus').val()
+    # Initializes membrane voltage.
     @graphing = setInterval =>
+      @tick += 0.2
+      factor = Math.max(0, 1 - 0.8*(@tick / parseFloat(SPEC.ms_range)))
+      color = rgb(@red * factor, @green * factor, @blue * factor)
+      @ctx.strokeStyle = color
       if @tick > SPEC.ms_range
         clearInterval @graphing
-      # next = @tick + SPEC.dt * 10
-      # while @tick < next
+        @graphing = null
+        # @ctx.strokeStyle = rgb(60,20,,5)
       v = neuron.stepVoltage()
-        # @tick += SPEC.dt
-      @tick += 0.1
       @datapoint(@tick, v)
-    , 1
+    , 0
 
   line: (x1,y1,x2,y2) =>
     @ctx.moveTo x1, y1
@@ -156,7 +168,9 @@ editStimulus = (v) ->
 
 
 changeStimulus = (dV) ->
+  o = $('#stimulus')
   editStimulus(parseFloat($('#stimulus').val()) + dV)
+  o.focus()
 
 
 
@@ -168,9 +182,15 @@ $ ->
   $("#fire").click ->
     graph.fire(neuron)
   $(document).keydown (e) ->
-    console.log e.keyCode
     switch e.keyCode
-      when 38 then changeStimulus(1)
-      when 40 then changeStimulus(-1)
-      when 13 then graph.fire(neuron)
-      else true
+      when 38
+        changeStimulus(1)
+        false
+      when 40
+        changeStimulus(-1)
+        false
+      when 13
+        graph.fire(neuron)
+        false
+      else
+        true
